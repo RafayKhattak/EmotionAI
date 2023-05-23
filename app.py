@@ -1,3 +1,4 @@
+# Import necessary libraries and modules
 import numpy as np
 import cv2
 import streamlit as st
@@ -5,7 +6,6 @@ from tensorflow import keras
 from keras.models import load_model
 from keras.utils import image_utils
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration, WebRtcMode
-
 
 # Set page configuration and title for Streamlit
 st.set_page_config(page_title="EmotionAI", page_icon="👁", layout="wide")
@@ -17,13 +17,11 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# load model
+# Load model
 emotion_dict = {0:'Angry',1:'Disgust',2:'Fear',3:'Happy',4:'Neutral', 5:'Sad', 6:'Surprise'}
+classifier = load_model("model.h5")  # Load pre-trained model
 
-# load weights into new model
-classifier = load_model("model.h5")
-
-#load face
+# Load face cascade classifier
 try:
     face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 except Exception:
@@ -35,23 +33,31 @@ class Faceemotion(VideoTransformerBase):
     def transform(self, frame):
         img = frame.to_ndarray(format="bgr24")
 
-        #image gray
+        # Convert image to grayscale
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(
-            image=img_gray, scaleFactor=1.3, minNeighbors=5)
+        
+        # Detect faces in the grayscale image
+        faces = face_cascade.detectMultiScale(image=img_gray, scaleFactor=1.3, minNeighbors=5)
+        
+        # Process each detected face
         for (x, y, w, h) in faces:
-            cv2.rectangle(img=img, pt1=(x, y), pt2=(
-                x + w, y + h), color=(255, 0, 0), thickness=2)
+            cv2.rectangle(img=img, pt1=(x, y), pt2=(x + w, y + h), color=(255, 0, 0), thickness=2)
             roi_gray = img_gray[y:y + h, x:x + w]
+            
+            # Resize the region of interest (ROI) to match the input size of the model
             roi_gray = cv2.resize(roi_gray, (48, 48), interpolation=cv2.INTER_AREA)
+            
             if np.sum([roi_gray]) != 0:
                 roi = roi_gray.astype('float') / 255.0
                 roi = image_utils.img_to_array(roi)
                 roi = np.expand_dims(roi, axis=0)
+                
+                # Make prediction using the loaded model
                 prediction = classifier.predict(roi)[0]
                 maxindex = int(np.argmax(prediction))
                 finalout = emotion_dict[maxindex]
                 output = str(finalout)
+            
             label_position = (x, y)
             cv2.putText(img, output, label_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
@@ -74,4 +80,3 @@ hide_st_style = """
 
 # Apply CSS code to hide header, footer, and menu
 st.markdown(hide_st_style, unsafe_allow_html=True)
-
